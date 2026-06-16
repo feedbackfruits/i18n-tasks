@@ -222,7 +222,15 @@ module I18n::Tasks::Scanners
         end
       end
 
+      # In strict mode dynamic (interpolated) keys are ignored, matching the default scanner.
+      occurrences.reject! { |key, _occurrence| dynamic_key?(key) } if config[:strict]
+
       occurrences
+    end
+
+    # @return [Boolean] whether the resolved key contains an unresolved interpolation, e.g. "a.#{x}".
+    def dynamic_key?(key)
+      key.to_s.include?('#{')
     end
 
     def skip_prism_comment?(comments)

@@ -101,7 +101,7 @@ module I18n::Tasks::Scanners::PrismScanners
         parent.add_translation_call(
           TranslationCall.new(
             node: node,
-            key: args[0],
+            key: interpolated_key(node) || args[0],
             receiver: node.receiver,
             options: kwargs,
             parent: parent
@@ -144,6 +144,21 @@ module I18n::Tasks::Scanners::PrismScanners
     end
 
     private
+
+    # Reconstruct a dynamic key string from an interpolated first argument to t/translate,
+    # e.g. t("a.#{x}.b") => "a.#{x}.b". Mirrors the whitequark scanner, which keeps the
+    # interpolation source so i18n-tasks can treat the key as a dynamic pattern covering a
+    # subtree. Returns nil when the first argument is not interpolated. Strict-mode dropping
+    # of these dynamic keys happens in the scanner (RubyScanner#process_prism_results).
+    def interpolated_key(node)
+      first_arg = node.arguments&.arguments&.first
+      return nil unless first_arg.is_a?(Prism::InterpolatedStringNode) ||
+        first_arg.is_a?(Prism::InterpolatedSymbolNode)
+
+      first_arg.parts.map do |part|
+        part.is_a?(Prism::StringNode) ? part.unescaped : part.slice
+      end.join
+    end
 
     def process_arguments(node)
       return [], {} if node.nil?

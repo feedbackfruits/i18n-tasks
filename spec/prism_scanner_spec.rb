@@ -577,14 +577,17 @@ RSpec.describe "PrismScanner" do
       occurrences =
         process_string("spec/fixtures/used_keys/app/controllers/a.rb", source)
 
-      expect(occurrences.size).to eq(4)
+      # Non-strict (process_string sets no :strict): the interpolated call emits its dynamic
+      # key alongside the magic-comment key, matching the whitequark scanner.
+      expect(occurrences.size).to eq(5)
 
       expect(occurrences.map(&:first)).to match_array(
-        %w[
-          translation.from.comment
-          scoped.translation.key1
-          translation.from.comment2
-          translation.from.comment3
+        [
+          "translation.from.comment",
+          "scoped.translation.key1",
+          "scoped.translation.\#{variable}",
+          "translation.from.comment2",
+          "translation.from.comment3"
         ]
       )
 
