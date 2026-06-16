@@ -164,6 +164,68 @@ RSpec.describe "PrismScanner" do
       )
     end
 
+    describe "before_action with a non-literal only:/except:" do
+      # Each of these resolves only:/except: to something other than an array literal of
+      # action names. They must not crash, and the before_action's filter must fall back
+      # to "applies to all actions" so real usages are never missed.
+      {
+        "a constant" => "FIND_ACTIVITY_ACTIONS",
+        "a method call" => "some_actions",
+        "a local variable" => "actions",
+        "a splat" => "*actions"
+      }.each do |description, only_expr|
+        it "does not crash on #{description} only:" do
+          source = <<~RUBY
+            class ActivitiesController < ApplicationController
+              FIND_ACTIVITY_ACTIONS = [:show, :update, :destroy].freeze
+              before_action :find_activity, only: #{only_expr}
+
+              def show
+                t('.title')
+              end
+
+              private
+
+              def find_activity; end
+            end
+          RUBY
+
+          occurrences = process_string("app/controllers/activities_controller.rb", source)
+
+          expect(occurrences.map(&:first)).to include("activities.show.title")
+        end
+      end
+
+      it "still honors an array-literal only:" do
+        source = <<~RUBY
+          class EventsController < ApplicationController
+            before_action :method_a, only: [:create]
+
+            def create
+              t('.relative_key')
+            end
+
+            def other
+              t('.other')
+            end
+
+            private
+
+            def method_a
+              t('.from_before_action')
+            end
+          end
+        RUBY
+
+        occurrences = process_string("app/controllers/events_controller.rb", source)
+
+        keys = occurrences.map(&:first)
+        # method_a's relative key applies to :create (in only:) but not :other.
+        expect(keys).to include("events.create.from_before_action")
+        expect(keys).not_to include("events.other.from_before_action")
+      end
+    end
+
     it "handles translation as argument" do
       source = <<~RUBY
         class EventsController < ApplicationController

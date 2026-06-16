@@ -416,14 +416,28 @@ module I18n::Tasks::Scanners::PrismScanners
   end
 
   class ParsedBeforeAction < Root
-    attr_accessor(:name, :only, :except)
+    attr_accessor(:name)
+    attr_reader(:only, :except)
 
     def initialize(node:, parent:, name: nil, only: nil, except: nil)
       @name = name
-      @only = only.present? ? Array(only).map(&:to_s) : nil
-      @except = except.present? ? Array(except).map(&:to_s) : nil
+      self.only = only
+      self.except = except
 
       super(node: node, parent: parent)
+    end
+
+    # only:/except: come from the ArgumentsVisitor, which resolves array and symbol/string
+    # literals but passes other AST nodes (constants, method calls, splats) through
+    # unresolved. Coerce to a list of action-name strings, or nil when the filter cannot be
+    # statically resolved — in which case the before_action conservatively applies to all
+    # actions, so real usages are never missed.
+    def only=(value)
+      @only = normalize_action_filter(value)
+    end
+
+    def except=(value)
+      @except = normalize_action_filter(value)
     end
 
     def support_relative_keys?
@@ -448,6 +462,24 @@ module I18n::Tasks::Scanners::PrismScanners
 
     def process
       @translation_calls.filter { |call| !call.relative_key? }
+    end
+
+    private
+
+    # @return [Array<String>, nil] action names, or nil when the value cannot be resolved
+    #   to a literal list of names (conservatively treated as "applies to all actions").
+    def normalize_action_filter(value)
+      case value
+      when nil
+        nil
+      when String, Symbol
+        [value.to_s]
+      when Array
+        names = value.select { |v| v.is_a?(String) || v.is_a?(Symbol) }.map(&:to_s)
+        # If any element was dynamic (e.g. an interpolated or non-literal entry), bail out
+        # to "applies to all" rather than matching on a partial list.
+        (names.size == value.size) ? names.presence : nil
+      end
     end
   end
 end
