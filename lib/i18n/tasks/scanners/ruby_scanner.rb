@@ -184,7 +184,8 @@ module I18n::Tasks::Scanners
       visitor = I18n::Tasks::Scanners::PrismScanners::Visitor.new(
         rails: config[:prism] != "ruby",
         file_path: path,
-        relative_roots: config[:relative_roots]
+        relative_roots: config[:relative_roots],
+        strict: config[:strict]
       )
       parsed.accept(visitor)
 
@@ -203,7 +204,7 @@ module I18n::Tasks::Scanners
         parsed_comment = Prism.parse(payload)
         next if parsed_comment.respond_to?(:errors) && parsed_comment.errors.any?
 
-        comment_visitor = I18n::Tasks::Scanners::PrismScanners::Visitor.new
+        comment_visitor = I18n::Tasks::Scanners::PrismScanners::Visitor.new(strict: config[:strict])
         parsed_comment.value.accept(comment_visitor)
 
         comment_visitor.process.each do |translation_call|

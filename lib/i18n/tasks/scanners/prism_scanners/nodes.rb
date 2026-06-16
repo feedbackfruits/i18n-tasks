@@ -189,6 +189,15 @@ module I18n::Tasks::Scanners::PrismScanners
 
     private
 
+    # The resolved default: kwarg (string, key reference, or per-key hash). The Visitor has
+    # already resolved a dynamic/interpolated default into @options (or dropped it in strict
+    # mode), so this simply reads the option — and it is preserved across with_parent/with_node.
+    def default_arg
+      return nil unless @options.is_a?(Hash)
+
+      @options["default"]
+    end
+
     def scope
       return nil if @options.nil?
       return nil unless @options.key?("scope")
@@ -222,6 +231,7 @@ module I18n::Tasks::Scanners::PrismScanners
         line_pos: location.start_column,
         line_num: location.start_line,
         raw_key: key,
+        default_arg: default_arg,
         candidate_keys: Array(final)
       )
 

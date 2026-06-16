@@ -16,7 +16,7 @@ module I18n::Tasks::Scanners::PrismScanners
 
     attr_reader(:calls, :current_module, :current_class, :current_method, :root, :processed_magic_comment_ids)
 
-    def initialize(rails: false, file_path: nil, relative_roots: nil)
+    def initialize(rails: false, file_path: nil, relative_roots: nil, strict: false)
       @calls = []
 
       @current_module = nil
@@ -26,6 +26,7 @@ module I18n::Tasks::Scanners::PrismScanners
       @processed_magic_comment_ids = []
 
       @rails = rails
+      @strict = strict
 
       # Needs to have () because the Prism::Visitor has no arguments
       super()
@@ -98,6 +99,7 @@ module I18n::Tasks::Scanners::PrismScanners
         args, kwargs = process_arguments(node)
         # Do not process other receivers than I18n, e.g. Service.translate(:key)
         return if node.receiver.present? && !i18n_receiver?(node.receiver)
+        resolve_interpolated_default!(node, kwargs)
         parent.add_translation_call(
           TranslationCall.new(
             node: node,
@@ -152,12 +154,51 @@ module I18n::Tasks::Scanners::PrismScanners
     # of these dynamic keys happens in the scanner (RubyScanner#process_prism_results).
     def interpolated_key(node)
       first_arg = node.arguments&.arguments&.first
-      return nil unless first_arg.is_a?(Prism::InterpolatedStringNode) ||
-        first_arg.is_a?(Prism::InterpolatedSymbolNode)
+      return nil unless interpolated?(first_arg)
 
-      first_arg.parts.map do |part|
+      reconstruct_interpolated(first_arg)
+    end
+
+    # The ArgumentsVisitor resolves string/symbol/hash defaults into kwargs but drops an
+    # interpolated default to nil. Reconstruct it here (e.g. default: "a.#{x}" => "a.#{x}"),
+    # matching the whitequark scanner. In strict mode dynamic defaults are ignored, so leave
+    # the resolved value nil.
+    def resolve_interpolated_default!(node, kwargs)
+      return if @strict
+      return unless kwargs.is_a?(Hash) && kwargs.key?("default") && kwargs["default"].nil?
+
+      default_node = default_value_node(node)
+      return unless interpolated?(default_node)
+
+      kwargs["default"] = reconstruct_interpolated(default_node)
+    end
+
+    def interpolated?(node)
+      node.is_a?(Prism::InterpolatedStringNode) || node.is_a?(Prism::InterpolatedSymbolNode)
+    end
+
+    def reconstruct_interpolated(node)
+      node.parts.map do |part|
         part.is_a?(Prism::StringNode) ? part.unescaped : part.slice
       end.join
+    end
+
+    # @return [Prism::Node, nil] the value node of the `default:` pair, if present.
+    def default_value_node(node)
+      hash = node.arguments&.arguments&.find { |arg| arg.is_a?(Prism::KeywordHashNode) }
+      return nil unless hash
+
+      assoc = hash.elements.find do |element|
+        element.is_a?(Prism::AssocNode) && assoc_key_name(element) == "default"
+      end
+      assoc&.value
+    end
+
+    def assoc_key_name(assoc)
+      case (key = assoc.key)
+      when Prism::SymbolNode then key.value
+      when Prism::StringNode then key.unescaped
+      end
     end
 
     def process_arguments(node)
@@ -190,7 +231,7 @@ module I18n::Tasks::Scanners::PrismScanners
         parse_result = Prism.parse(string)
         next if parse_result.respond_to?(:errors) && parse_result.errors.any?
 
-        visitor = Visitor.new
+        visitor = Visitor.new(strict: @strict)
         parse_result.value.accept(visitor)
 
         # Process and remap the found translation calls to be for the found comment

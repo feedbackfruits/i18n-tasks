@@ -16,6 +16,10 @@ module I18n::Tasks::Scanners::PrismScanners
       end
     end
 
+    # A braced hash, e.g. the per-key `default: {one: "...", other: "..."}` argument.
+    # Resolved the same way as keyword arguments.
+    alias_method :visit_hash_node, :visit_keyword_hash_node
+
     def visit_local_variable_read_node(node)
       # Keep this node to know that we cannot resolve this argument statically
       node
