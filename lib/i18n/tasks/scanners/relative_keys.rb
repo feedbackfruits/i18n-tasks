@@ -28,6 +28,23 @@ module I18n
           end
         end
 
+        # Resolve the key-prefix segments for a view template at `path`, relative to the
+        # closest matching root. Mirrors {#absolute_key} (root selection + partial `_`
+        # stripping) but returns the segments rather than a full key, so the Prism scanner
+        # can reuse it as the oracle for relative view keys.
+        # @param path [String] path to the file containing the key
+        # @param roots [Array<String>] paths to relative roots
+        # @return [Array<String>, nil] segments, or nil if no root matches `path`.
+        def relative_roots_path(path, roots)
+          return nil if roots.blank?
+
+          normalized_path = File.expand_path(path)
+          root = path_root(normalized_path, roots)
+          return nil unless root
+
+          prefix(normalized_path.sub(root, "")).split(DOT)
+        end
+
         private
 
         DOT = "."

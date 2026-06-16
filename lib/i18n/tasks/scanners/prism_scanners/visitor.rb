@@ -16,13 +16,13 @@ module I18n::Tasks::Scanners::PrismScanners
 
     attr_reader(:calls, :current_module, :current_class, :current_method, :root, :processed_magic_comment_ids)
 
-    def initialize(rails: false, file_path: nil)
+    def initialize(rails: false, file_path: nil, relative_roots: nil)
       @calls = []
 
       @current_module = nil
       @current_class = nil
       @current_method = nil
-      @root = Root.new(file_path:, rails: rails)
+      @root = Root.new(file_path:, rails: rails, relative_roots: relative_roots)
       @processed_magic_comment_ids = []
 
       @rails = rails

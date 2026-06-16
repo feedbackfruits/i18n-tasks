@@ -1,12 +1,16 @@
 # frozen_string_literal: true
 
+require_relative "../relative_keys"
+
 # These classes are used in the PrismScanners::Visitor class to store the translations found in the parsed code
 # Used in the PrismScanners::Visitor class.
 module I18n::Tasks::Scanners::PrismScanners
   class Root
+    include ::I18n::Tasks::Scanners::RelativeKeys
+
     attr_reader(:calls, :translation_calls, :children, :node, :parent, :rails)
 
-    def initialize(node: nil, parent: nil, file_path: nil, rails: false)
+    def initialize(node: nil, parent: nil, file_path: nil, rails: false, relative_roots: nil)
       @calls = []
       @translation_calls = []
       @children = []
@@ -14,10 +18,16 @@ module I18n::Tasks::Scanners::PrismScanners
       @parent = parent
       @rails = rails
       @file_path = file_path
+      @relative_roots = relative_roots
     end
 
     def file_path
       @file_path || @parent&.file_path
+    end
+
+    # The configured search.relative_roots, propagated from the root node to its children.
+    def relative_roots
+      @relative_roots || @parent&.relative_roots
     end
 
     def add_child(node)
@@ -36,13 +46,7 @@ module I18n::Tasks::Scanners::PrismScanners
     def rails_view?
       return false unless rails && file_path.present?
 
-      if file_path.include?("app/views/")
-        true
-      elsif file_path.include?("app/components/")
-        !file_path.end_with?(".rb")
-      else
-        false
-      end
+      view_path_parts.present? || component_view?
     end
 
     def support_relative_keys?
@@ -54,18 +58,10 @@ module I18n::Tasks::Scanners::PrismScanners
     end
 
     def path
-      if rails_view?
-        folder_path = if file_path.include?("app/views/")
-          file_path.sub(%r{app/views/}, "").split("/")
-        else
-          file_path.sub(%r{app/components/}, "").split("/")
-        end
-
-        name = folder_path.pop.split(".").first
-        # Remove leading underscores from partials
-        name = name[1..] if name.start_with?("_") # rubocop:disable Performance/ArraySemiInfiniteRangeSlice
-
-        [*folder_path, name]
+      if view_path_parts.present?
+        view_path_parts
+      elsif component_view?
+        component_path
       else
         []
       end
@@ -78,6 +74,36 @@ module I18n::Tasks::Scanners::PrismScanners
     # Only supported for Rails controllers currently
     def private_method
       false
+    end
+
+    private
+
+    # Key-prefix segments for a view template under one of the configured relative roots,
+    # or nil when the file is not under any root. Reuses RelativeKeys so the resolved key
+    # matches the legacy whitequark scanner.
+    def view_path_parts
+      return @view_path_parts if defined?(@view_path_parts)
+
+      # Only view templates resolve via the file path; .rb sources (controllers, mailers,
+      # components) get their namespace from the class/module name instead.
+      @view_path_parts =
+        if file_path.present? && !file_path.end_with?(".rb")
+          relative_roots_path(file_path, relative_roots)
+        end
+    end
+
+    # ViewComponent templates live under app/components, which is not a relative root.
+    def component_view?
+      file_path.present? && file_path.include?("app/components/") && !file_path.end_with?(".rb")
+    end
+
+    def component_path
+      folder_path = file_path.sub(%r{app/components/}, "").split("/")
+      name = folder_path.pop.split(".").first
+      # Remove leading underscores from partials
+      name = name[1..] if name.start_with?("_") # rubocop:disable Performance/ArraySemiInfiniteRangeSlice
+
+      [*folder_path, name]
     end
   end
 
