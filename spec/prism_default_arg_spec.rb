@@ -46,4 +46,37 @@ RSpec.describe "Prism default: argument" do
       end
     end
   end
+
+  describe "ERB" do
+    let(:path) { "app/views/application/default_args.html.erb" }
+
+    def erb_defaults_by_key(config)
+      I18n::Tasks::Scanners::ErbAstScanner.new(config: config)
+        .send(:scan_file, path).to_h { |key, occ| [key, occ.default_arg] }
+    end
+
+    %w[ruby rails].each do |mode|
+      context "prism: #{mode.inspect}" do
+        [true, false].each do |strict|
+          it "matches whitequark default_arg with strict: #{strict}" do
+            whitequark = erb_defaults_by_key(strict: strict)
+            prism = erb_defaults_by_key(strict: strict, prism: mode)
+            expect(prism).to eq(whitequark)
+          end
+        end
+
+        it "captures string, symbol, hash and interpolated defaults" do
+          expect(erb_defaults_by_key(strict: true, prism: mode)).to include(
+            "with_string_default" => "fallback",
+            "with_symbol_default" => "other_key",
+            "with_hash_default" => {"one" => "One", "other" => "Other"},
+            "with_dynamic_default" => nil,
+            "with_no_default" => nil
+          )
+          expect(erb_defaults_by_key(strict: false, prism: mode)["with_dynamic_default"])
+            .to eq("prefix.\#{suffix}")
+        end
+      end
+    end
+  end
 end

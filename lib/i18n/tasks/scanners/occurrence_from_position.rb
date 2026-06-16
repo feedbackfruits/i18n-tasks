@@ -11,7 +11,7 @@ module I18n
         # @param contents [String] contents of the file at the path.
         # @param position [Integer] position just before the beginning of the match.
         # @return [Results::Occurrence]
-        def occurrence_from_position(path, contents, position, raw_key: nil, candidate_keys: nil)
+        def occurrence_from_position(path, contents, position, raw_key: nil, default_arg: nil, candidate_keys: nil)
           line_begin = contents.rindex(/^/, position - 1)
           line_end = contents.index(/.(?=\r?\n|$)/, position)
           Results::Occurrence.new(
@@ -21,6 +21,7 @@ module I18n
             line_pos: position - line_begin + 1,
             line: contents[line_begin..line_end],
             raw_key: raw_key,
+            default_arg: default_arg,
             candidate_keys: candidate_keys
           )
         end

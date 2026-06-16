@@ -112,6 +112,7 @@ module I18n::Tasks::Scanners
             content,
             start + occurrence.pos,
             raw_key: occurrence.raw_key,
+            default_arg: occurrence.default_arg,
             candidate_keys: occurrence.candidate_keys
           )
         ]
@@ -130,6 +131,7 @@ module I18n::Tasks::Scanners
             content,
             start + (code.index(key) || occurrence.pos),
             raw_key: occurrence.raw_key,
+            default_arg: occurrence.default_arg,
             candidate_keys: occurrence.candidate_keys
           )
         ]
