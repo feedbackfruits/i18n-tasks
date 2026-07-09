@@ -4,9 +4,18 @@ updates:
     directory: '/'
     schedule:
       interval: weekly
+      time: "05:00"
+      timezone: "Europe/Amsterdam"
     open-pull-requests-limit: 99
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
 
   - package-ecosystem: github-actions
     directory: '/'
     schedule:
       interval: weekly
+      time: "05:00"
+      timezone: "Europe/Amsterdam"
+    cooldown:
+      default-days: 7
